@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TagoIO HUD Distancia</title>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+:root {
+    --theme-color: #00f3ff;
+    --theme-glow: rgba(0, 243, 255, 0.5);
+    --theme-bg: rgba(0, 243, 255, 0.05);
+}
+
+body {
+    font-family: 'Share Tech Mono', monospace;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(180deg, #001f4d, #8b0000); /* azul a rojo */
+    color: var(--theme-color);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.hud-container {
+    background: #0a0a12;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid var(--theme-color);
+    box-shadow: 0 0 15px var(--theme-glow);
+    width: 90%;
+    max-width: 350px;
+    text-align: center;
+    position: relative;
+}
+
+.header {
+    font-size: 0.8em;
+    margin-bottom: 10px;
+}
+
+.value {
+    font-size: 4em;
+}
+
+.bar-container {
+    width: 100%;
+    height: 12px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid var(--theme-color);
+}
+
+.bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--theme-color);
+}
+
+.status-msg {
+    font-size: 0.75em;
+    margin-top: 5px;
+}
+
+/* Emoji */
+.emoji {
+    font-size: 2.5em;
+    position: relative;
+    transition: left 0.3s ease;
+}
+
+/* Estados */
+.mode-safe { --theme-color: #00ffaa; }
+.mode-warning { --theme-color: #ffaa00; }
+.mode-danger { --theme-color: #ff0044; }
+
+/* Footer */
+.footer {
+    position: absolute;
+    bottom: 10px;
+    font-size: 0.7em;
+    opacity: 0.7;
+}
+</style>
+</head>
+
+<body>
+
+<div id="hud" class="hud-container mode-safe">
+
+    <div class="header">TAGOIO SENSOR DATA</div>
+
+    <div id="emoji" class="emoji">👑</div>
+
+    <div class="value-box">
+        <div id="distance-value" class="value">---</div>
+        <div>cm</div>
+    </div>
+
+    <div class="bar-container">
+        <div id="distance-bar" class="bar-fill"></div>
+    </div>
+
+    <div id="status-msg" class="status-msg">CONECTANDO...</div>
+
+</div>
+
+<div class="footer">Jonnathan Carabajo</div>
+
+<script>
+const token = "5c6a0971-a300-4ce7-81d1-fe782733f082";
+
+async function obtenerDatos() {
+    try {
+        const response = await fetch("https://api.tago.io/data?variable=distancia&qty=1", {
+            method: "GET",
+            headers: {
+                "Device-Token": token
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.result && data.result.length > 0) {
+            const valor = parseFloat(data.result[0].value);
+            updateUI(valor);
+        }
+
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+setInterval(obtenerDatos, 3000);
+
+function updateUI(valor) {
+    const val = document.getElementById('distance-value');
+    const bar = document.getElementById('distance-bar');
+    const hud = document.getElementById('hud');
+    const msg = document.getElementById('status-msg');
+    const emoji = document.getElementById('emoji');
+
+    val.innerText = valor.toFixed(1);
+
+    let porcentaje = Math.min(Math.max(valor, 0), 100);
+    bar.style.width = (100 - porcentaje) + '%';
+
+    /* Movimiento emoji (0 a 100 cm → izquierda a derecha) */
+    emoji.style.left = porcentaje + '%';
+
+    if (valor < 15) {
+        hud.className = 'hud-container mode-danger';
+        msg.innerText = '¡ALERTA!';
+    } else if (valor < 40) {
+        hud.className = 'hud-container mode-warning';
+        msg.innerText = 'PRECAUCIÓN';
+    } else {
+        hud.className = 'hud-container mode-safe';
+        msg.innerText = 'OK';
+    }
+}
+</script>
+
+</body>
+</html>
+
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TagoIO HUD Distancia</title>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+:root {
+    --color-safe: #00ffaa;
+    --color-warning: #ffaa00;
+    --color-danger: #ff0044;
+}
+
+body {
+    font-family: 'Share Tech Mono', monospace;
+    margin: 0;
+    background: linear-gradient(180deg, #001f4d, #8b0000);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* CONTENEDOR */
+.hud-container {
+    background: #0a0a12;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid;
+    width: 90%;
+    max-width: 350px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+/* ESTADOS SOLO EN CSS */
+.mode-safe {
+    color: var(--color-safe);
+    border-color: var(--color-safe);
+    box-shadow: 0 0 15px var(--color-safe);
+}
+
+.mode-warning {
+    color: var(--color-warning);
+    border-color: var(--color-warning);
+    box-shadow: 0 0 15px var(--color-warning);
+}
+
+.mode-danger {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+    box-shadow: 0 0 15px var(--color-danger);
+}
+
+.value {
+    font-size: 4em;
+}
+
+/* BARRA */
+.bar-container {
+    width: 100%;
+    height: 12px;
+    background: rgba(255,255,255,0.1);
+    margin-top: 10px;
+}
+
+.bar-fill {
+    height: 100%;
+    width: 0%;
+    transition: width 0.4s ease;
+}
+
+/* COLORES SEGÚN ESTADO */
+.mode-safe .bar-fill { background: var(--color-safe); }
+.mode-warning .bar-fill { background: var(--color-warning); }
+.mode-danger .bar-fill { background: var(--color-danger); }
+
+/* EMOJI */
+.emoji {
+    font-size: 2.5em;
+    position: relative;
+    transition: left 0.3s ease;
+}
+
+.status-msg {
+    font-size: 0.8em;
+    margin-top: 8px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="hud" class="hud-container mode-safe">
+
+    <div>TAGOIO SENSOR</div>
+
+    <div id="emoji" class="emoji">👑</div>
+
+    <div class="value" id="distance-value">---</div>
+    <div>cm</div>
+
+    <div class="bar-container">
+        <div id="distance-bar" class="bar-fill"></div>
+    </div>
+
+    <div id="status-msg" class="status-msg">CONECTANDO...</div>
+
+</div>
+
+<script>
+const token = "TU_TOKEN_AQUI";
+
+async function obtenerDatos() {
+    try {
+        const res = await fetch("https://api.tago.io/data?variable=distancia&qty=1", {
+            headers: { "Device-Token": token }
+        });
+
+        const data = await res.json();
+
+        if (data.result?.length > 0) {
+            const valor = parseFloat(data.result[0].value);
+            updateUI(valor);
+        }
+
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+setInterval(obtenerDatos, 3000);
+
+function updateUI(valor) {
+    const val = document.getElementById('distance-value');
+    const bar = document.getElementById('distance-bar');
+    const hud = document.getElementById('hud');
+    const msg = document.getElementById('status-msg');
+    const emoji = document.getElementById('emoji');
+
+    val.innerText = valor.toFixed(1);
+
+    let porcentaje = Math.min(Math.max(valor, 0), 100);
+
+    bar.style.width = (100 - porcentaje) + '%';
+    emoji.style.left = porcentaje + '%';
+
+    /* SOLO CAMBIO DE CLASE */
+    if (valor < 15) {
+        hud.className = 'hud-container mode-danger';
+        msg.innerText = '¡ALERTA!';
+    } 
+    else if (valor < 40) {
+        hud.className = 'hud-container mode-warning';
+        msg.innerText = 'PRECAUCIÓN';
+    } 
+    else {
+        hud.className = 'hud-container mode-safe';
+        msg.innerText = 'OK';
+    }
+}
+</script>
+
+</body>
+</html>
+
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Panel Distancia TagoIO</title>
+
+<style>
+body {
+    margin: 0;
+    background: #0d1117;
+    font-family: Arial;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* TARJETA */
+.card {
+    background: #161b22;
+    padding: 25px;
+    border-radius: 15px;
+    width: 300px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+/* VALOR */
+.value {
+    font-size: 3em;
+    margin: 10px 0;
+}
+
+/* BARRA */
+.progress {
+    height: 10px;
+    background: #333;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.fill {
+    height: 100%;
+    width: 0%;
+    transition: 0.5s;
+}
+
+/* ESTADOS */
+.safe { background: #00c853; }
+.warning { background: #ffab00; }
+.danger { background: #d50000; }
+
+.status {
+    margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+    <h3>Distancia Sensor</h3>
+    <div id="value" class="value">---</div>
+
+    <div class="progress">
+        <div id="bar" class="fill"></div>
+    </div>
+
+    <div id="status" class="status">CONECTANDO...</div>
+</div>
+
+<script>
+
+// 🔑 PON TU TOKEN AQUÍ
+const TOKEN = "5c6a0971-a300-4ce7-81d1-fe782733f082";
+
+// 📡 OBTENER DATOS DE TAGOIO
+async function obtenerDatos() {
+    try {
+        const res = await fetch("https://api.tago.io/data?variable=distancia&qty=1", {
+            method: "GET",
+            headers: {
+                "Device-Token": TOKEN
+            }
+        });
+
+        const data = await res.json();
+
+        // Validar JSON
+        if (data.result && data.result.length > 0) {
+
+            const json = {
+                distancia: parseFloat(data.result[0].value)
+            };
+
+            updateUI(json);
+        }
+
+    } catch (error) {
+        console.log("Error:", error);
+    }
+}
+
+// 🔄 ACTUALIZA CADA 3 SEGUNDOS
+setInterval(obtenerDatos, 3000);
+
+// 🎨 ACTUALIZAR INTERFAZ
+function updateUI(data) {
+    const valor = data.distancia;
+
+    const value = document.getElementById("value");
+    const bar = document.getElementById("bar");
+    const status = document.getElementById("status");
+
+    value.innerText = valor.toFixed(1) + " cm";
+
+    let porcentaje = Math.min(valor, 100);
+    bar.style.width = porcentaje + "%";
+
+    bar.className = "fill";
+
+    if (valor < 15) {
+        bar.classList.add("danger");
+        status.innerText = "PELIGRO";
+    } 
+    else if (valor < 40) {
+        bar.classList.add("warning");
+        status.innerText = "CUIDADO";
+    } 
+    else {
+        bar.classList.add("safe");
+        status.innerText = "SEGURO";
+    }
+}
+
+</script>
+
+</body>
+</html>
