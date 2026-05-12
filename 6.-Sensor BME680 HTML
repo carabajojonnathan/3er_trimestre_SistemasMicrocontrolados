@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>BME680 Dashboard</title>
+
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;500;700&display=swap');
+
+:root{
+  --bg:#0a0f1f;
+  --panel:rgba(17,24,39,0.72);
+  --border:#1e2d45;
+  --text:#e2eaf6;
+  --muted:#4a6080;
+  --accent:#00d4ff;
+}
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  background:
+    radial-gradient(circle at top left,#13203d 0%,transparent 30%),
+    radial-gradient(circle at bottom right,#1a1140 0%,transparent 30%),
+    linear-gradient(135deg,#050816 0%,#0a0f1f 40%,#060b16 100%);
+
+  background-attachment:fixed;
+
+  font-family:'Exo 2',sans-serif;
+  color:var(--text);
+
+  min-height:100vh;
+  padding:24px 16px;
+
+  overflow-x:hidden;
+}
+
+header{
+  text-align:center;
+  margin-bottom:35px;
+}
+
+header h1{
+  font-family:'Share Tech Mono',monospace;
+  font-size:28px;
+  color:var(--accent);
+  letter-spacing:4px;
+}
+
+header p{
+  margin-top:8px;
+  color:var(--muted);
+  font-size:13px;
+  letter-spacing:2px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:22px;
+  max-width:1300px;
+  margin:auto;
+}
+
+.card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:24px;
+  backdrop-filter:blur(12px);
+
+  box-shadow:
+    0 0 20px rgba(0,212,255,0.08),
+    inset 0 0 20px rgba(255,255,255,0.02);
+
+  transition:0.35s ease;
+
+  position:relative;
+
+  overflow:hidden;
+}
+
+.card:hover{
+  transform:translateY(-6px);
+
+  border-color:#00d4ff88;
+
+  box-shadow:
+    0 0 30px rgba(0,212,255,0.18),
+    0 0 60px rgba(0,212,255,0.08);
+}
+
+.card::before{
+  content:'';
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:4px;
+}
+
+.card-temp::before{
+  background:linear-gradient(90deg,#ff4d4d,#ff9900);
+}
+
+.card-hum::before{
+  background:linear-gradient(90deg,#00aaff,#00d4ff);
+}
+
+.card-pres::before{
+  background:linear-gradient(90deg,#7c4dff,#da77ff);
+}
+
+.card-alt::before{
+  background:linear-gradient(90deg,#00d4ff,#4dffb8);
+}
+
+.card-gas::before{
+  background:linear-gradient(90deg,#ff6a00,#ffcc00);
+}
+
+.card-title{
+  font-size:12px;
+  letter-spacing:3px;
+  color:var(--muted);
+  margin-bottom:18px;
+  text-transform:uppercase;
+}
+
+.value-row{
+  font-family:'Share Tech Mono',monospace;
+  font-size:42px;
+  font-weight:700;
+  color:white;
+}
+
+.unit{
+  font-size:18px;
+  color:var(--muted);
+}
+
+.simple-bar{
+  width:100%;
+  height:7px;
+  background:#1a2540;
+  border-radius:10px;
+  overflow:hidden;
+  margin-top:18px;
+}
+
+.simple-fill{
+  height:100%;
+  width:0%;
+  border-radius:10px;
+  transition:1s;
+}
+
+.status{
+  margin-top:14px;
+  color:var(--muted);
+  font-size:12px;
+  font-family:'Share Tech Mono',monospace;
+}
+
+.center{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+
+.footer{
+  max-width:1300px;
+  margin:28px auto 0;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:15px;
+  padding:18px;
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
+  font-family:'Share Tech Mono',monospace;
+  color:var(--muted);
+  font-size:12px;
+}
+
+.dot{
+  width:8px;
+  height:8px;
+  background:#22c55e;
+  border-radius:50%;
+  display:inline-block;
+  margin-right:6px;
+  box-shadow:0 0 10px #22c55e;
+  animation:pulse 2s infinite;
+}
+
+@keyframes pulse{
+  0%,100%{opacity:1;}
+  50%{opacity:0.3;}
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>BME680 SENSOR DASHBOARD</h1>
+  <p>Monitoreo ambiental en tiempo real · Tago.io</p>
+</header>
+
+<div class="grid">
+
+  <!-- TEMPERATURA -->
+  <div class="card card-temp center">
+
+    <div class="card-title">🌡 Temperatura</div>
+
+    <div class="value-row" id="tempVal">--<span class="unit">°C</span></div>
+
+    <div class="simple-bar">
+      <div id="tempBar"
+      class="simple-fill"
+      style="background:linear-gradient(90deg,#ff4d4d,#ff9900)">
+      </div>
+    </div>
+
+    <div class="status" id="tempStatus">Esperando datos...</div>
+
+  </div>
+
+  <!-- HUMEDAD -->
+  <div class="card card-hum center">
+
+    <div class="card-title">💧 Humedad</div>
+
+    <div class="value-row" id="humVal">--<span class="unit">%</span></div>
+
+    <div class="simple-bar">
+      <div id="humBar"
+      class="simple-fill"
+      style="background:linear-gradient(90deg,#00aaff,#00d4ff)">
+      </div>
+    </div>
+
+    <div class="status" id="humStatus">Esperando datos...</div>
+
+  </div>
+
+  <!-- PRESION -->
+  <div class="card card-pres center">
+
+    <div class="card-title">⛰ Presión</div>
+
+    <div class="value-row" id="presVal">--<span class="unit">hPa</span></div>
+
+    <div class="simple-bar">
+      <div id="presBar"
+      class="simple-fill"
+      style="background:linear-gradient(90deg,#7c4dff,#da77ff)">
+      </div>
+    </div>
+
+    <div class="status" id="presStatus">Esperando datos...</div>
+
+  </div>
+
+  <!-- ALTITUD -->
+  <div class="card card-alt center">
+
+    <div class="card-title">🛰 Altitud</div>
+
+    <div class="value-row" id="altVal">--<span class="unit">m</span></div>
+
+    <div class="simple-bar">
+      <div id="altBar"
+      class="simple-fill"
+      style="background:linear-gradient(90deg,#00d4ff,#4dffb8)">
+      </div>
+    </div>
+
+    <div class="status" id="altStatus">Esperando datos...</div>
+
+  </div>
+
+  <!-- GAS -->
+  <div class="card card-gas center">
+
+    <div class="card-title">🔥 Gas VOC</div>
+
+    <div class="value-row" id="gasVal">--<span class="unit">kΩ</span></div>
+
+    <div class="simple-bar">
+      <div id="gasBar"
+      class="simple-fill"
+      style="background:linear-gradient(90deg,#ff6a00,#ffcc00)">
+      </div>
+    </div>
+
+    <div class="status" id="gasStatus">Esperando datos...</div>
+
+  </div>
+
+</div>
+
+<div class="footer">
+
+  <div>
+    <span class="dot"></span>
+    Tago.io conectado
+  </div>
+
+  <div>
+    Última actualización:
+    <span id="lastTime">--</span>
+  </div>
+
+  <div id="connStatus" style="color:#22c55e;">
+    ● ONLINE
+  </div>
+
+</div>
+
+<script>
+
+/* ========= TOKEN TAGO ========= */
+
+const TAGO_TOKEN = "TU_TOKEN_AQUI";
+
+/* ========= VARIABLES ========= */
+
+const VAR_TEMP = "temperature";
+const VAR_HUM  = "humidity";
+const VAR_PRES = "pressure";
+const VAR_ALT  = "altitude";
+const VAR_GAS  = "gas_resistance";
+
+/* ========= INTERVALO ========= */
+
+const INTERVAL = 5000;
+
+/* ========= FETCH ========= */
+
+async function fetchVar(varName){
+
+  const url =
+  `https://api.tago.io/data?variable=${varName}&qty=1`;
+
+  const res = await fetch(url,{
+    method:"GET",
+    headers:{
+      "Device-Token": TAGO_TOKEN,
+      "Content-Type":"application/json"
+    }
+  });
+
+  if(!res.ok){
+    throw new Error("HTTP " + res.status);
+  }
+
+  const json = await res.json();
+
+  if(json.length > 0){
+
+    return parseFloat(json[0].value);
+  }
+
+  return null;
+}
+
+/* ========= UPDATE UI ========= */
+
+function updateUI(temp,hum,pres,alt,gas){
+
+  document.getElementById("lastTime")
+  .innerHTML =
+  new Date().toLocaleTimeString("es-EC");
+
+  /* TEMP */
+
+  if(temp !== null){
+
+    const t = temp.toFixed(1);
+
+    document.getElementById("tempVal")
+    .innerHTML =
+    `${t}<span class="unit">°C</span>`;
+
+    document.getElementById("tempBar")
+    .style.width =
+    `${(t/60)*100}%`;
+
+    document.getElementById("tempStatus")
+    .innerHTML =
+    t < 15 ? "Frío" :
+    t < 28 ? "Normal" :
+    "Caluroso";
+  }
+
+  /* HUM */
+
+  if(hum !== null){
+
+    const h = Math.round(hum);
+
+    document.getElementById("humVal")
+    .innerHTML =
+    `${h}<span class="unit">%</span>`;
+
+    document.getElementById("humBar")
+    .style.width = h + "%";
+
+    document.getElementById("humStatus")
+    .innerHTML =
+    h < 30 ? "Seco" :
+    h < 70 ? "Normal" :
+    "Húmedo";
+  }
+
+  /* PRES */
+
+  if(pres !== null){
+
+    const p = Math.round(pres);
+
+    document.getElementById("presVal")
+    .innerHTML =
+    `${p}<span class="unit">hPa</span>`;
+
+    const pct =
+    ((p-900)/200)*100;
+
+    document.getElementById("presBar")
+    .style.width = pct + "%";
+
+    document.getElementById("presStatus")
+    .innerHTML =
+    p < 1000 ? "Baja" :
+    p < 1020 ? "Normal" :
+    "Alta";
+  }
+
+  /* ALT */
+
+  if(alt !== null){
+
+    const a = Math.round(alt);
+
+    document.getElementById("altVal")
+    .innerHTML =
+    `${a}<span class="unit">m</span>`;
+
+    const pct =
+    (a/4000)*100;
+
+    document.getElementById("altBar")
+    .style.width = pct + "%";
+
+    document.getElementById("altStatus")
+    .innerHTML =
+    a < 500 ? "Baja altitud" :
+    a < 2000 ? "Media montaña" :
+    "Alta montaña";
+  }
+
+  /* GAS */
+
+  if(gas !== null){
+
+    const g =
+    Math.round(gas/1000);
+
+    document.getElementById("gasVal")
+    .innerHTML =
+    `${g}<span class="unit">kΩ</span>`;
+
+    const pct =
+    (g/500)*100;
+
+    document.getElementById("gasBar")
+    .style.width = pct + "%";
+
+    document.getElementById("gasStatus")
+    .innerHTML =
+    g > 300 ? "Aire limpio" :
+    g > 100 ? "Moderado" :
+    "VOC alto";
+  }
+}
+
+/* ========= POLLING ========= */
+
+async function poll(){
+
+  try{
+
+    const [temp,hum,pres,alt,gas] =
+    await Promise.all([
+
+      fetchVar(VAR_TEMP),
+      fetchVar(VAR_HUM),
+      fetchVar(VAR_PRES),
+      fetchVar(VAR_ALT),
+      fetchVar(VAR_GAS)
+
+    ]);
+
+    updateUI(temp,hum,pres,alt,gas);
+
+  }catch(e){
+
+    document.getElementById("connStatus")
+    .innerHTML = "● ERROR";
+
+    document.getElementById("connStatus")
+    .style.color = "#ef4444";
+
+    console.error(e);
+  }
+}
+
+/* ========= START ========= */
+
+poll();
+
+setInterval(poll,INTERVAL);
+
+</script>
+
+</body>
+</html>
