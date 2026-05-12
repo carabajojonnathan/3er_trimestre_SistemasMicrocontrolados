@@ -1,0 +1,207 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <TinyGPS++.h>
+
+/* ========= WIFI ========= */
+
+const char* ssid = "TU_WIFI";
+const char* password = "TU_PASSWORD";
+
+/* ========= TAGO ========= */
+
+const char* token = "TU_TOKEN_TAGO";
+
+/* ========= GPS ========= */
+
+TinyGPSPlus gps;
+HardwareSerial gpsSerial(2);
+
+/* ========= ECUADOR UTC-5 ========= */
+
+const int UTC_OFFSET = -5;
+
+/* ========= VARIABLES ========= */
+
+float latitude;
+float longitude;
+float speed_kmph;
+float gps_altitude;
+
+int satellites;
+
+String gps_date;
+String gps_time;
+
+void setup() {
+
+  Serial.begin(115200);
+
+  /* RX=16 TX=17 */
+  gpsSerial.begin(9600, SERIAL_8N1, 16, 17);
+
+  /* WIFI */
+  WiFi.begin(ssid, password);
+
+  Serial.print("Conectando WiFi");
+
+  while (WiFi.status() != WL_CONNECTED) {
+
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi conectado");
+}
+
+void loop() {
+
+  while (gpsSerial.available()) {
+    gps.encode(gpsSerial.read());
+  }
+
+  if (gps.location.isValid()) {
+
+    latitude = gps.location.lat();
+    longitude = gps.location.lng();
+
+    speed_kmph = gps.speed.kmph();
+
+    satellites = gps.satellites.value();
+
+    gps_altitude = gps.altitude.meters();
+
+    /* ========= FECHA ========= */
+
+    if (gps.date.isValid()) {
+
+      gps_date =
+        String(gps.date.day()) + "/" +
+        String(gps.date.month()) + "/" +
+        String(gps.date.year());
+
+    } else {
+
+      gps_date = "Sin fecha";
+    }
+
+    /* ========= HORA ECUADOR ========= */
+
+    if (gps.time.isValid()) {
+
+      int hora = gps.time.hour() + UTC_OFFSET;
+
+      if (hora < 0) {
+        hora += 24;
+      }
+
+      if (hora >= 24) {
+        hora -= 24;
+      }
+
+      String horaStr = (hora < 10) ? "0" + String(hora) : String(hora);
+
+      String minStr =
+        (gps.time.minute() < 10)
+        ? "0" + String(gps.time.minute())
+        : String(gps.time.minute());
+
+      String segStr =
+        (gps.time.second() < 10)
+        ? "0" + String(gps.time.second())
+        : String(gps.time.second());
+
+      gps_time = horaStr + ":" + minStr + ":" + segStr;
+
+    } else {
+
+      gps_time = "Sin hora";
+    }
+
+    Serial.println("========== GPS ==========");
+
+    Serial.print("Latitud: ");
+    Serial.println(latitude, 6);
+
+    Serial.print("Longitud: ");
+    Serial.println(longitude, 6);
+
+    Serial.print("Velocidad: ");
+    Serial.println(speed_kmph);
+
+    Serial.print("Satelites: ");
+    Serial.println(satellites);
+
+    Serial.print("Altitud GPS: ");
+    Serial.println(gps_altitude);
+
+    Serial.print("Fecha Ecuador: ");
+    Serial.println(gps_date);
+
+    Serial.print("Hora Ecuador: ");
+    Serial.println(gps_time);
+
+    Serial.println("=========================");
+
+    /* ========= TAGO ========= */
+
+    if (WiFi.status() == WL_CONNECTED) {
+
+      HTTPClient http;
+
+      http.begin("https://api.tago.io/data");
+
+      http.addHeader("Content-Type", "application/json");
+
+      http.addHeader("Device-Token", token);
+
+      String json = "[";
+
+      json += "{";
+      json += "\"variable\":\"latitude\",";
+      json += "\"value\":" + String(latitude, 6);
+      json += "},";
+
+      json += "{";
+      json += "\"variable\":\"longitude\",";
+      json += "\"value\":" + String(longitude, 6);
+      json += "},";
+
+      json += "{";
+      json += "\"variable\":\"speed\",";
+      json += "\"value\":" + String(speed_kmph);
+      json += "},";
+
+      json += "{";
+      json += "\"variable\":\"satellites\",";
+      json += "\"value\":" + String(satellites);
+      json += "},";
+
+      json += "{";
+      json += "\"variable\":\"gps_altitude\",";
+      json += "\"value\":" + String(gps_altitude);
+      json += "},";
+
+      json += "{";
+      json += "\"variable\":\"gps_date\",";
+      json += "\"value\":\"" + gps_date + "\"";
+      json += "},";
+
+      json += "{";
+      json += "\"variable\":\"gps_time\",";
+      json += "\"value\":\"" + gps_time + "\"";
+      json += "}";
+
+      json += "]";
+
+      int httpCode = http.POST(json);
+
+      Serial.print("HTTP: ");
+      Serial.println(httpCode);
+
+      http.end();
+    }
+
+    delay(5000);
+  }
+}
