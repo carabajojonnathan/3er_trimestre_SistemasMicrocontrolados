@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estación Metereológica — Monitor GPS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #080c10;
+    --panel:     #0d1318;
+    --border:    #1a2830;
+    --accent:    #00e5ff;
+    --accent2:   #00ff9d;
+    --warn:      #ffb300;
+    --danger:    #ff3d5a;
+    --text:      #c8dde6;
+    --dim:       #4a6270;
+    --glow:      0 0 12px rgba(0,229,255,0.35);
+    --glow2:     0 0 12px rgba(0,255,157,0.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid noise texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(13,19,24,0.95);
+    backdrop-filter: blur(8px);
+  }
+
+  .logo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 22px;
+    color: var(--accent);
+    letter-spacing: 6px;
+    text-shadow: var(--glow);
+  }
+
+  .logo span { color: var(--accent2); }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--danger);
+    display: inline-block;
+    margin-right: 6px;
+    animation: blink 1.5s infinite;
+  }
+  .dot.ok { background: var(--accent2); animation: none; box-shadow: var(--glow2); }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  #last-update { color: var(--dim); font-family: 'Share Tech Mono', monospace; font-size: 11px; }
+
+  /* ── Layout ── */
+  .main {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    grid-template-rows: auto auto 1fr;
+    gap: 16px;
+    padding: 20px 28px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* ── Panel base ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .panel:hover { border-color: rgba(0,229,255,0.25); }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.4;
+  }
+
+  .panel-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── GPS panel ── */
+  .gps-panel { grid-column: 1; grid-row: 1 / 3; }
+
+  .coord-row {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .coord-item label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 2px;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .coord-item .val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 26px;
+    color: var(--accent);
+    text-shadow: var(--glow);
+    letter-spacing: 1px;
+  }
+
+  .coord-item .val.small { font-size: 18px; color: var(--text); text-shadow: none; }
+
+  .gps-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .mini-stat {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 10px 12px;
+  }
+  .mini-stat label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 2px;
+    display: block;
+  }
+  .mini-stat .v {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 20px;
+    color: var(--accent2);
+    text-shadow: var(--glow2);
+  }
+  .mini-stat .u { font-size: 11px; color: var(--dim); margin-left: 3px; }
+
+  .maps-btn {
+    display: block;
+    margin-top: 16px;
+    padding: 10px;
+    text-align: center;
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: var(--accent);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-decoration: none;
+    transition: all 0.25s;
+    cursor: pointer;
+  }
+  .maps-btn:hover {
+    background: var(--accent);
+    color: var(--bg);
+    box-shadow: var(--glow);
+  }
+
+  /* ── Env panel ── */
+  .env-panel { grid-column: 2; grid-row: 1; }
+
+  .env-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+
+  .env-card {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 14px 12px;
+    text-align: center;
+    transition: border-color 0.3s;
+  }
+  .env-card:hover { border-color: var(--accent2); }
+
+  .env-card .icon {
+    font-size: 22px;
+    margin-bottom: 6px;
+  }
+
+  .env-card label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--dim);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .env-card .ev {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 22px;
+    color: var(--accent2);
+    text-shadow: var(--glow2);
+    display: block;
+  }
+
+  .env-card .eu {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+  }
+
+  /* ── Chart panel ── */
+  .chart-panel { grid-column: 2; grid-row: 2; }
+
+  .chart-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+
+  .tab {
+    padding: 5px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    box-shadow: var(--glow);
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 160px;
+  }
+
+  canvas#chart {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* ── Map panel ── */
+  .map-panel { grid-column: 1 / 3; grid-row: 3; min-height: 340px; }
+
+  #map {
+    width: 100%;
+    height: 300px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  /* ── Loading / error ── */
+  .loading {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    text-align: center;
+    padding: 30px;
+    letter-spacing: 2px;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .no-data {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--danger);
+    text-align: center;
+    padding: 20px;
+    letter-spacing: 2px;
+  }
+
+  /* ── Refresh btn ── */
+  .refresh-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Token config */
+  .config-bar {
+    position: relative;
+    z-index: 10;
+    padding: 8px 28px;
+    background: rgba(8,12,16,0.9);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+  }
+  .config-bar input {
+    flex: 1;
+    max-width: 380px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--accent);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 5px 10px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .config-bar input:focus { border-color: var(--accent); }
+  .config-bar button {
+    padding: 5px 14px;
+    background: var(--accent);
+    border: none;
+    border-radius: 2px;
+    color: var(--bg);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .config-bar button:hover { opacity: 0.85; }
+
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .gps-panel, .env-panel, .chart-panel, .map-panel {
+      grid-column: 1; grid-row: auto;
+    }
+    .env-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Estación Metereológica<span>.</span></div>
+  <div class="status-bar">
+    <span><span class="dot" id="conn-dot"></span><span id="conn-label">SIN DATOS</span></span>
+    <span id="last-update">—</span>
+    <button class="refresh-btn" onclick="fetchData()">↻ ACTUALIZAR</button>
+  </div>
+</header>
+
+<div class="config-bar">
+  TOKEN:
+  <input type="text" id="token-input" placeholder="Pega tu Token de TagoIO aquí..." value="7c4bd640-4253-46fd-85c6-19e23eaa12a1">
+  <button onclick="saveToken()">APLICAR</button>
+  <span style="margin-left:auto;color:#2a3a44;">Auto-refresh cada 15s</span>
+</div>
+
+<div class="main">
+
+  <!-- GPS -->
+  <div class="panel gps-panel">
+    <div class="panel-title">📡 GPS</div>
+    <div class="coord-row">
+      <div class="coord-item">
+        <label>LATITUD</label>
+        <div class="val" id="lat">—</div>
+      </div>
+      <div class="coord-item">
+        <label>LONGITUD</label>
+        <div class="val" id="lng">—</div>
+      </div>
+      <div class="coord-item">
+        <label>ALTITUD GPS</label>
+        <div class="val small" id="alt-gps">— m</div>
+      </div>
+    </div>
+    <div class="gps-grid">
+      <div class="mini-stat">
+        <label>VELOCIDAD</label>
+        <span class="v" id="vel">—</span><span class="u">km/h</span>
+      </div>
+      <div class="mini-stat">
+        <label>SATÉLITES</label>
+        <span class="v" id="sats">—</span>
+      </div>
+      <div class="mini-stat">
+        <label>HDOP</label>
+        <span class="v" id="hdop">—</span>
+      </div>
+      <div class="mini-stat">
+        <label>ALT BME</label>
+        <span class="v" id="alt-bme">—</span><span class="u">m</span>
+      </div>
+    </div>
+    <a class="maps-btn" id="maps-link" href="#" target="_blank">▶ VER EN GOOGLE MAPS</a>
+  </div>
+
+  <!-- Sensores ambientales -->
+  <div class="panel env-panel">
+    <div class="panel-title">🌡 AMBIENTE — BME680</div>
+    <div class="env-grid">
+      <div class="env-card">
+        <div class="icon">🌡</div>
+        <label>TEMP</label>
+        <span class="ev" id="temp">—</span>
+        <span class="eu">°C</span>
+      </div>
+      <div class="env-card">
+        <div class="icon">💧</div>
+        <label>HUMEDAD</label>
+        <span class="ev" id="hum">—</span>
+        <span class="eu">%</span>
+      </div>
+      <div class="env-card">
+        <div class="icon">🔵</div>
+        <label>PRESIÓN</label>
+        <span class="ev" id="pres">—</span>
+        <span class="eu">hPa</span>
+      </div>
+      <div class="env-card">
+        <div class="icon">💨</div>
+        <label>GAS</label>
+        <span class="ev" id="gas">—</span>
+        <span class="eu">kΩ</span>
+      </div>
+      <div class="env-card">
+        <div class="icon">⛰</div>
+        <label>ALT BME</label>
+        <span class="ev" id="alt-bme2">—</span>
+        <span class="eu">m</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráfica histórica -->
+  <div class="panel chart-panel">
+    <div class="panel-title">📈 HISTORIAL</div>
+    <div class="chart-tabs">
+      <button class="tab active" onclick="switchTab(this,'temperatura')">TEMP</button>
+      <button class="tab" onclick="switchTab(this,'humedad')">HUM</button>
+      <button class="tab" onclick="switchTab(this,'presion')">PRES</button>
+      <button class="tab" onclick="switchTab(this,'gas')">GAS</button>
+      <button class="tab" onclick="switchTab(this,'velocidad')">VEL</button>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="chart"></canvas>
+    </div>
+  </div>
+
+  <!-- Mapa -->
+  <div class="panel map-panel">
+    <div class="panel-title">🗺 UBICACIÓN EN TIEMPO REAL</div>
+    <div id="map"><div class="loading">ESPERANDO COORDENADAS...</div></div>
+  </div>
+
+</div>
+
+<script>
+/* ===== CONFIG ===== */
+let TAGO_TOKEN = document.getElementById('token-input').value.trim();
+const TAGO_BASE = 'https://api.tago.io/data/export';
+const VARS = ['temperatura','humedad','presion','gas','altitud_gps','altitud_bme','velocidad','satelites','hdop','location'];
+
+let mapInited = false;
+let leafletMap, marker;
+let chartInst = null;
+let currentTab = 'temperatura';
+let history = {};
+
+/* ===== TOKEN ===== */
+function saveToken() {
+  TAGO_TOKEN = document.getElementById('token-input').value.trim();
+  fetchData();
+}
+
+/* ===== FETCH ÚLTIMO VALOR ===== */
+async function fetchLast(variable) {
+  const url = `https://api.tago.io/data?variable=${variable}&qty=1`;
+  const r = await fetch(url, { headers: { 'Device-Token': TAGO_TOKEN } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const j = await r.json();
+  return j.result?.[0] ?? null;
+}
+
+/* ===== FETCH HISTORIAL ===== */
+async function fetchHistory(variable, qty=20) {
+  const url = `https://api.tago.io/data?variable=${variable}&qty=${qty}`;
+  const r = await fetch(url, { headers: { 'Device-Token': TAGO_TOKEN } });
+  if (!r.ok) return [];
+  const j = await r.json();
+  return (j.result ?? []).reverse();
+}
+
+/* ===== FETCH DATOS PRINCIPALES ===== */
+async function fetchData() {
+  setStatus(false);
+  try {
+    const fetches = VARS.map(v => fetchLast(v));
+    const results = await Promise.allSettled(fetches);
+
+    const data = {};
+    VARS.forEach((v, i) => {
+      if (results[i].status === 'fulfilled' && results[i].value) {
+        data[v] = results[i].value;
+      }
+    });
+
+    updateUI(data);
+    setStatus(true);
+
+    // Historial para gráfica
+    fetchHistory(currentTab).then(h => {
+      history[currentTab] = h;
+      drawChart(currentTab);
+    });
+
+  } catch(e) {
+    console.error(e);
+    setStatus(false);
+  }
+}
+
+/* ===== ACTUALIZAR UI ===== */
+function updateUI(data) {
+  const v = (key, decimals=2) => {
+    const d = data[key];
+    return d ? Number(d.value).toFixed(decimals) : '—';
+  };
+
+  // GPS
+  let lat = null, lng = null;
+  if (data.location) {
+    const loc = data.location.value;
+    if (typeof loc === 'string' && loc.includes(',')) {
+      [lat, lng] = loc.split(',').map(Number);
+    } else if (typeof loc === 'object') {
+      lat = loc.lat; lng = loc.lng;
+    }
+  }
+
+  set('lat', lat !== null ? lat.toFixed(6) : '—');
+  set('lng', lng !== null ? lng.toFixed(6) : '—');
+  set('alt-gps', v('altitud_gps', 1) + ' m');
+  set('vel', v('velocidad', 1));
+  set('sats', v('satelites', 0));
+  set('hdop', v('hdop', 2));
+  set('alt-bme', v('altitud_bme', 1));
+  set('alt-bme2', v('altitud_bme', 1));
+
+  // Ambiente
+  set('temp', v('temperatura', 1));
+  set('hum', v('humedad', 1));
+  set('pres', v('presion', 1));
+  set('gas', v('gas', 1));
+
+  // Maps link
+  if (lat !== null && lng !== null) {
+    const link = `https://maps.google.com/?q=${lat},${lng}`;
+    document.getElementById('maps-link').href = link;
+    initMap(lat, lng);
+  }
+
+  // Timestamp
+  const allDates = Object.values(data).map(d => new Date(d.time)).filter(Boolean);
+  if (allDates.length) {
+    const latest = new Date(Math.max(...allDates));
+    document.getElementById('last-update').textContent =
+      'ACT: ' + latest.toLocaleTimeString('es-EC', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  }
+}
+
+function set(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+/* ===== STATUS ===== */
+function setStatus(ok) {
+  const dot = document.getElementById('conn-dot');
+  const lbl = document.getElementById('conn-label');
+  dot.className = 'dot' + (ok ? ' ok' : '');
+  lbl.textContent = ok ? 'EN LÍNEA' : 'SIN DATOS';
+}
+
+/* ===== MAPA ===== */
+function initMap(lat, lng) {
+  if (!mapInited) {
+    // Cargar Leaflet dinámicamente
+    if (!window.L) {
+      const css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+      document.head.appendChild(css);
+
+      const js = document.createElement('script');
+      js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+      js.onload = () => buildMap(lat, lng);
+      document.head.appendChild(js);
+    } else {
+      buildMap(lat, lng);
+    }
+    mapInited = true;
+  } else if (marker) {
+    marker.setLatLng([lat, lng]);
+    leafletMap.setView([lat, lng]);
+  }
+}
+
+function buildMap(lat, lng) {
+  document.getElementById('map').innerHTML = '';
+  leafletMap = L.map('map', { zoomControl: true }).setView([lat, lng], 16);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(leafletMap);
+
+  const icon = L.divIcon({
+    html: `<div style="
+      width:16px;height:16px;
+      background:#00e5ff;
+      border:3px solid #fff;
+      border-radius:50%;
+      box-shadow:0 0 10px #00e5ff;
+    "></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+    className: ''
+  });
+
+  marker = L.marker([lat, lng], { icon }).addTo(leafletMap);
+  marker.bindPopup(`<b>JONNA</b><br>${lat.toFixed(6)}, ${lng.toFixed(6)}`).openPopup();
+}
+
+/* ===== GRÁFICA ===== */
+function switchTab(btn, variable) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  currentTab = variable;
+
+  if (history[variable]) {
+    drawChart(variable);
+  } else {
+    fetchHistory(variable).then(h => {
+      history[variable] = h;
+      drawChart(variable);
+    });
+  }
+}
+
+function drawChart(variable) {
+  const data = history[variable] ?? [];
+  const canvas = document.getElementById('chart');
+  const ctx = canvas.getContext('2d');
+
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+
+  if (!data.length) {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#4a6270';
+    ctx.font = '12px Share Tech Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText('SIN DATOS HISTÓRICOS', canvas.width/2, canvas.height/2);
+    return;
+  }
+
+  const labels = data.map(d => {
+    const t = new Date(d.time);
+    return t.toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit'});
+  });
+  const values = data.map(d => Number(d.value));
+
+  const colors = {
+    temperatura: '#ff6b6b',
+    humedad:     '#00e5ff',
+    presion:     '#a78bfa',
+    gas:         '#00ff9d',
+    velocidad:   '#ffb300'
+  };
+  const color = colors[variable] ?? '#00e5ff';
+
+  // Simple canvas chart (no external lib needed)
+  const W = canvas.offsetWidth || 600;
+  const H = canvas.offsetHeight || 160;
+  canvas.width = W;
+  canvas.height = H;
+
+  const pad = { t:10, r:10, b:30, l:46 };
+  const cw = W - pad.l - pad.r;
+  const ch = H - pad.t - pad.b;
+
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Grid lines
+  ctx.strokeStyle = '#1a2830';
+  ctx.lineWidth = 1;
+  for (let i=0; i<=4; i++) {
+    const y = pad.t + (ch / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
+    const val = maxV - (range/4)*i;
+    ctx.fillStyle = '#4a6270';
+    ctx.font = '9px Share Tech Mono';
+    ctx.textAlign = 'right';
+    ctx.fillText(val.toFixed(1), pad.l-6, y+3);
+  }
+
+  // Area fill
+  ctx.beginPath();
+  data.forEach((d, i) => {
+    const x = pad.l + (i / (data.length-1||1)) * cw;
+    const y = pad.t + ch - ((Number(d.value)-minV)/range)*ch;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  const lastX = pad.l + cw;
+  ctx.lineTo(lastX, pad.t+ch);
+  ctx.lineTo(pad.l, pad.t+ch);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t+ch);
+  grad.addColorStop(0, color+'55');
+  grad.addColorStop(1, color+'00');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 6;
+  data.forEach((d, i) => {
+    const x = pad.l + (i / (data.length-1||1)) * cw;
+    const y = pad.t + ch - ((Number(d.value)-minV)/range)*ch;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Dots
+  data.forEach((d, i) => {
+    const x = pad.l + (i / (data.length-1||1)) * cw;
+    const y = pad.t + ch - ((Number(d.value)-minV)/range)*ch;
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+
+  // X labels (primero y último)
+  ctx.fillStyle = '#4a6270';
+  ctx.font = '9px Share Tech Mono';
+  ctx.textAlign = 'center';
+  if (labels.length > 1) {
+    ctx.fillText(labels[0], pad.l, H-6);
+    ctx.fillText(labels[labels.length-1], pad.l+cw, H-6);
+  }
+}
+
+/* ===== AUTO REFRESH ===== */
+fetchData();
+setInterval(fetchData, 15000);
+setInterval(() => {
+  // Refrescar gráfica activa
+  fetchHistory(currentTab).then(h => {
+    history[currentTab] = h;
+    drawChart(currentTab);
+  });
+}, 30000);
+
+window.addEventListener('resize', () => {
+  if (history[currentTab]) drawChart(currentTab);
+});
+</script>
+</body>
+</html>
